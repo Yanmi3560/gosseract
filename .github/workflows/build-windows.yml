@@ -29,11 +29,19 @@ jobs:
 
       - name: Set environment
         run: |
-          echo "CGO_ENABLED=1" >> $GITHUB_ENV
-          echo "CC=C:/vcpkg/installed/x64-windows/tools/mingw64/bin/gcc.exe" >> $GITHUB_ENV
-          echo "CGO_CFLAGS=-IC:/vcpkg/installed/x64-windows/include" >> $GITHUB_ENV
-          echo "CGO_LDFLAGS=-LC:/vcpkg/installed/x64-windows/lib" >> $GITHUB_ENV
-          echo "TESSDATA_PREFIX=C:/vcpkg/installed/x64-windows/share/tesseract/tessdata" >> $GITHUB_ENV
+          $includePath = "C:/vcpkg/installed/x64-windows/include"
+          $libPath = "C:/vcpkg/installed/x64-windows/lib"
+          $tessdataPath = "C:/vcpkg/installed/x64-windows/share/tesseract/tessdata"
+          echo "CGO_ENABLED=1" >> $env:GITHUB_ENV
+          echo "CC=x86_64-w64-mingw32-gcc" >> $env:GITHUB_ENV
+          echo "CGO_CFLAGS=-I$includePath" >> $env:GITHUB_ENV
+          echo "CGO_LDFLAGS=-L$libPath" >> $env:GITHUB_ENV
+          echo "TESSDATA_PREFIX=$tessdataPath" >> $env:GITHUB_ENV
+          echo "PATH=C:/vcpkg/installed/x64-windows/bin;$env:PATH" >> $env:GITHUB_ENV
+
+      - name: Show installed files
+        run: |
+          Get-ChildItem C:/vcpkg/installed/x64-windows/include -Recurse -Filter "allheaders.h" | Select-Object FullName
 
       - name: Build
         run: go build -ldflags="-s -w" -o ocr.exe ./cmd/ocr
