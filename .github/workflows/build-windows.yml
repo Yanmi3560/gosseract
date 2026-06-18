@@ -18,55 +18,27 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Install vcpkg
+      - name: Install tesseract via MSYS2
         run: |
-          # Clone to D:/vcpkg to avoid conflict with the runner's pre-installed vcpkg at C:/vcpkg
-          git clone https://github.com/Microsoft/vcpkg.git D:/vcpkg
-          D:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
-
-      - name: Install tesseract via vcpkg
-        run: |
-          D:/vcpkg/vcpkg install tesseract:x64-windows
-
-      - name: Create MinGW import libraries
-        shell: bash
-        run: |
-          # vcpkg x64-windows installs MSVC .lib files; MinGW needs .a import libraries.
-          # Generate them from the DLLs using gendef + dlltool.
-          export PATH="/c/mingw64/bin:$PATH"
-          cd /d/vcpkg/installed/x64-windows/bin
-          for dll in tesseract*.dll leptonica*.dll; do
-            if [ -f "$dll" ]; then
-              base="${dll%.dll}"
-              gendef "$dll"
-              dlltool -d "${base}.def" -l "lib${base}.a" -D "$dll"
-              echo "Created lib${base}.a from $dll"
-            fi
-          done
-          mv lib*.a /d/vcpkg/installed/x64-windows/lib/
-
-          # Create canonical names the linker expects (-ltesseract, -lleptonica)
-          cd /d/vcpkg/installed/x64-windows/lib
-          for f in libtesseract[0-9]*.a; do
-            [ -f "$f" ] && cp "$f" libtesseract.a && echo "libtesseract.a -> $f"
-          done
-          for f in libleptonica-*.a libleptonica[0-9]*.a; do
-            [ -f "$f" ] && cp "$f" libleptonica.a && echo "libleptonica.a -> $f"
-          done
+          # MSYS2's mingw-w64-x86_64-tesseract-ocr provides MinGW-native .a import
+          # libraries, avoiding the MSVC .lib vs MinGW .a ABI mismatch from vcpkg.
+          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm --needed `
+            mingw-w64-x86_64-tesseract-ocr `
+            mingw-w64-x86_64-tesseract-data-eng
 
       - name: Set environment
         run: |
-          $installRoot = "D:/vcpkg/installed/x64-windows"
-          echo "CGO_ENABLED=1" >> $env:GITHUB_ENV
-          echo "CC=x86_64-w64-mingw32-gcc" >> $env:GITHUB_ENV
-          echo "CGO_CFLAGS=-I$installRoot/include" >> $env:GITHUB_ENV
-          echo "CGO_LDFLAGS=-L$installRoot/lib" >> $env:GITHUB_ENV
-          echo "TESSDATA_PREFIX=$installRoot/share/tesseract/tessdata" >> $env:GITHUB_ENV
-          echo "PATH=$installRoot/bin;$env:PATH" >> $env:GITHUB_ENV
+          echo "CGO_ENABLED=1"                             >> $env:GITHUB_ENV
+          echo "CC=C:/msys64/mingw64/bin/gcc.exe"          >> $env:GITHUB_ENV
+          echo "CXX=C:/msys64/mingw64/bin/g++.exe"         >> $env:GITHUB_ENV
+          echo "CGO_CFLAGS=-IC:/msys64/mingw64/include"    >> $env:GITHUB_ENV
+          echo "CGO_LDFLAGS=-LC:/msys64/mingw64/lib"       >> $env:GITHUB_ENV
+          echo "TESSDATA_PREFIX=C:/msys64/mingw64/share/tessdata" >> $env:GITHUB_ENV
+          echo "PATH=C:/msys64/mingw64/bin;$env:PATH"      >> $env:GITHUB_ENV
 
-      - name: Show installed files
+      - name: Show installed headers
         run: |
-          Get-ChildItem D:/vcpkg/installed/x64-windows/include -Recurse -Filter "allheaders.h" | Select-Object FullName
+          Get-ChildItem C:/msys64/mingw64/include -Recurse -Filter "allheaders.h" | Select-Object FullName
 
       - name: Build
         run: go build -ldflags="-s -w" -o ocr.exe ./cmd/ocr
