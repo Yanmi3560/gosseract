@@ -28,6 +28,32 @@ jobs:
         run: |
           D:/vcpkg/vcpkg install tesseract:x64-windows
 
+      - name: Create MinGW import libraries
+        shell: bash
+        run: |
+          # vcpkg x64-windows installs MSVC .lib files; MinGW needs .a import libraries.
+          # Generate them from the DLLs using gendef + dlltool.
+          export PATH="/c/mingw64/bin:$PATH"
+          cd /d/vcpkg/installed/x64-windows/bin
+          for dll in tesseract*.dll leptonica*.dll; do
+            if [ -f "$dll" ]; then
+              base="${dll%.dll}"
+              gendef "$dll"
+              dlltool -d "${base}.def" -l "lib${base}.a" -D "$dll"
+              echo "Created lib${base}.a from $dll"
+            fi
+          done
+          mv lib*.a /d/vcpkg/installed/x64-windows/lib/
+
+          # Create canonical names the linker expects (-ltesseract, -lleptonica)
+          cd /d/vcpkg/installed/x64-windows/lib
+          for f in libtesseract[0-9]*.a; do
+            [ -f "$f" ] && cp "$f" libtesseract.a && echo "libtesseract.a -> $f"
+          done
+          for f in libleptonica-*.a libleptonica[0-9]*.a; do
+            [ -f "$f" ] && cp "$f" libleptonica.a && echo "libleptonica.a -> $f"
+          done
+
       - name: Set environment
         run: |
           $installRoot = "D:/vcpkg/installed/x64-windows"
