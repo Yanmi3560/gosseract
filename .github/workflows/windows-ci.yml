@@ -37,7 +37,10 @@ jobs:
           vcpkg-${{ runner.os }}-tesseract-
 
     - name: Install Tesseract via vcpkg
-      run: vcpkg install tesseract:x64-windows
+      run: |
+        # Use the runner's pre-installed vcpkg; bootstrap refreshes the binary
+        C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+        C:/vcpkg/vcpkg install tesseract:x64-windows --clean-after-build
 
     - name: Create MinGW import libraries
       shell: bash
