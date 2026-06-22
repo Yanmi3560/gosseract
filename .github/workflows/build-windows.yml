@@ -19,29 +19,28 @@ jobs:
           go-version: '1.21'
 
       - name: Install tesseract via MSYS2
-        run: |
-          # MSYS2's mingw-w64-x86_64-tesseract-ocr provides MinGW-native .a import
-          # libraries, avoiding the MSVC .lib vs MinGW .a ABI mismatch from vcpkg.
-          C:\msys64\usr\bin\pacman.exe -Sy --noconfirm --needed `
-            mingw-w64-x86_64-tesseract-ocr `
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: >-
+            mingw-w64-x86_64-tesseract-ocr
             mingw-w64-x86_64-tesseract-data-eng
 
-      - name: Set environment
-        run: |
-          echo "CGO_ENABLED=1"                             >> $env:GITHUB_ENV
-          echo "CC=C:/msys64/mingw64/bin/gcc.exe"          >> $env:GITHUB_ENV
-          echo "CXX=C:/msys64/mingw64/bin/g++.exe"         >> $env:GITHUB_ENV
-          echo "CGO_CFLAGS=-IC:/msys64/mingw64/include"    >> $env:GITHUB_ENV
-          echo "CGO_LDFLAGS=-LC:/msys64/mingw64/lib"       >> $env:GITHUB_ENV
-          echo "TESSDATA_PREFIX=C:/msys64/mingw64/share/tessdata" >> $env:GITHUB_ENV
-          echo "PATH=C:/msys64/mingw64/bin;$env:PATH"      >> $env:GITHUB_ENV
-
-      - name: Show installed headers
-        run: |
-          Get-ChildItem C:/msys64/mingw64/include -Recurse -Filter "allheaders.h" | Select-Object FullName
-
       - name: Build
-        run: go build -ldflags="-s -w" -o ocr.exe ./cmd/ocr
+        run: |
+          # Set CC and library paths in the same step to avoid cross-step env propagation issues.
+          # msys2/setup-msys2 installs MinGW-native .a libs under C:\msys64\mingw64.
+          $env:CGO_ENABLED  = "1"
+          $env:CC           = "C:\msys64\mingw64\bin\gcc.exe"
+          $env:CXX          = "C:\msys64\mingw64\bin\g++.exe"
+          $env:CGO_CFLAGS   = "-IC:/msys64/mingw64/include"
+          $env:CGO_LDFLAGS  = "-LC:/msys64/mingw64/lib"
+          $env:PATH         = "C:\msys64\mingw64\bin;" + $env:PATH
+          Write-Host "CC=$($env:CC)"
+          Write-Host "CGO_LDFLAGS=$($env:CGO_LDFLAGS)"
+          go env CC CGO_LDFLAGS
+          go build -ldflags="-s -w" -o ocr.exe ./cmd/ocr
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
