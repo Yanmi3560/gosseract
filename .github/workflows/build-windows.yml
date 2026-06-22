@@ -23,27 +23,22 @@ jobs:
         with:
           msystem: MINGW64
           update: false
+          path-type: inherit
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-tesseract-ocr
             mingw-w64-x86_64-tesseract-data-eng
 
       - name: Build
+        shell: msys2 {0}
         run: |
-          # setup-msys2 prepends MSYS2 MINGW64/bin to PATH.
-          # Derive all CGO paths from gcc's actual location so we don't
-          # hardcode the versioned hostedtoolcache path that changes over time.
-          $gccExe  = (Get-Command gcc.exe -ErrorAction Stop).Source
-          $mingw64 = (Split-Path (Split-Path $gccExe)).Replace('\', '/')
-          Write-Host "gcc : $gccExe"
-          Write-Host "root: $mingw64"
-          $env:CGO_ENABLED = "1"
-          $env:CC          = $gccExe
-          $env:CXX         = (Get-Command g++.exe -ErrorAction Stop).Source
-          $env:CGO_CFLAGS  = "-I$mingw64/include"
-          $env:CGO_LDFLAGS = "-L$mingw64/lib"
-          go env CC CGO_CFLAGS CGO_LDFLAGS
-          go build -ldflags="-s -w" -o ocr.exe ./cmd/ocr
+          # Running inside MSYS2 MINGW64 shell: gcc here is MSYS2's MinGW gcc,
+          # with /mingw64/include and /mingw64/lib in its default search path.
+          # path-type: inherit makes Go (from setup-go) available in this shell.
+          echo "gcc: $(which gcc)"
+          echo "go:  $(which go)"
+          gcc --version
+          CGO_ENABLED=1 go build -ldflags="-s -w" -o ocr.exe ./cmd/ocr
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
