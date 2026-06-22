@@ -24,22 +24,25 @@ jobs:
           msystem: MINGW64
           update: false
           install: >-
+            mingw-w64-x86_64-gcc
             mingw-w64-x86_64-tesseract-ocr
             mingw-w64-x86_64-tesseract-data-eng
 
       - name: Build
         run: |
-          # Set CC and library paths in the same step to avoid cross-step env propagation issues.
-          # msys2/setup-msys2 installs MinGW-native .a libs under C:\msys64\mingw64.
-          $env:CGO_ENABLED  = "1"
-          $env:CC           = "C:\msys64\mingw64\bin\gcc.exe"
-          $env:CXX          = "C:\msys64\mingw64\bin\g++.exe"
-          $env:CGO_CFLAGS   = "-IC:/msys64/mingw64/include"
-          $env:CGO_LDFLAGS  = "-LC:/msys64/mingw64/lib"
-          $env:PATH         = "C:\msys64\mingw64\bin;" + $env:PATH
-          Write-Host "CC=$($env:CC)"
-          Write-Host "CGO_LDFLAGS=$($env:CGO_LDFLAGS)"
-          go env CC CGO_LDFLAGS
+          # setup-msys2 prepends MSYS2 MINGW64/bin to PATH.
+          # Derive all CGO paths from gcc's actual location so we don't
+          # hardcode the versioned hostedtoolcache path that changes over time.
+          $gccExe  = (Get-Command gcc.exe -ErrorAction Stop).Source
+          $mingw64 = (Split-Path (Split-Path $gccExe)).Replace('\', '/')
+          Write-Host "gcc : $gccExe"
+          Write-Host "root: $mingw64"
+          $env:CGO_ENABLED = "1"
+          $env:CC          = $gccExe
+          $env:CXX         = (Get-Command g++.exe -ErrorAction Stop).Source
+          $env:CGO_CFLAGS  = "-I$mingw64/include"
+          $env:CGO_LDFLAGS = "-L$mingw64/lib"
+          go env CC CGO_CFLAGS CGO_LDFLAGS
           go build -ldflags="-s -w" -o ocr.exe ./cmd/ocr
 
       - name: Upload artifact
